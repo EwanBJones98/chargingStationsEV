@@ -190,9 +190,6 @@ def save_mapimage(savepath, center_coord, zoom_level, marker_coords=None, map_st
 
     # Call API to retrieve this map
     response = requests.post(url, headers={"Accept":"application/json"}, json=body)
-    if response.status_code != 200:
-        print(body["markers"])
-        exit()
     check_api_response(response)
 
     # Save image to save path
