@@ -182,8 +182,6 @@ def save_mapimage(savepath, center_coord, zoom_level, marker_coords=None, map_st
     if marker_coords is not None:
         body["markers"] = []
         for coord in marker_coords:
-            # my_markers.append({"lat":coord[0], "lon":coord[1], "color":"%", "size":"medium",
-                                # "type":"material", "icon":"charging-station", "icontype":"awesome", "shadow":"no"})
             body["markers"].append({"lat":coord[0], "lon":coord[1], "color":"orange", "size":"small",
                                     "icontype":"awesome", "icon":"charging-station", "shadow":"no",
                                     "type":"material"})
@@ -236,9 +234,8 @@ if __name__ == "__main__":
     colours = {"edinburgh":"red", "glasgow":"blue", "london":"black", "bristol":"green", "birmingham":"orange"} # Line colours
     
     for city in cities:
-        # Lets skip london for now
-        if city.lower() == "london":
-            continue
+        # Let's skip london for now
+        if city.lower() == "london": continue
         
         # Count number of chargers added in each bin
         count, _, _ = binned_statistic(tadded[city], tadded[city], statistic="count", bins=bin_edges)
@@ -251,8 +248,8 @@ if __name__ == "__main__":
     fig.tight_layout()
     fig.savefig("stationDevelopment_exclLondon.png", bbox_inches="tight", dpi=800)
     
-    # Now lets include London and see how it compares
-    # I would write a function for this plotting to avoid duplication but I don't want to overcomplicate for this single demonstrative use
+    # Now let's include London and see how it compares.
+    # I would write a function for this plotting to avoid duplication but I don't want to overcomplicate for this single demonstrative use.
     fig, ax = plt.subplots(figsize=(8,6))
     for city in cities:
         # Count number of chargers added in each bin
@@ -266,7 +263,6 @@ if __name__ == "__main__":
     ax.legend(fontsize=16)
     fig.tight_layout()
     fig.savefig("stationDevelopment.png", bbox_inches="tight", dpi=800)
-    
     
     """
     EXAMPLE 2
