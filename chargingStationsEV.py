@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
     """
     EXAMPLE 1
-        Compare the rate at which EV chargers are installed in various UK cities
+        Compare the rate at which EV chargers are installed in various UK cities.
     """
     # Get data for EV chargers in various cities
     cities       = ["edinburgh", "glasgow", "london", "bristol", "birmingham"]
@@ -252,7 +252,7 @@ if __name__ == "__main__":
     ax.set_ylabel("#Stations added", labelpad=15)
     ax.legend(fontsize=16)
     fig.tight_layout()
-    fig.savefig("stationDevelopment_exclLondon.png", bbox_inches="tight")
+    fig.savefig("stationDevelopment_exclLondon.png", bbox_inches="tight", dpi=800)
     
     # Now lets include London and see how it compares
     # I would write a function for this plotting to avoid duplication but I don't want to overcomplicate for this single demonstrative use
@@ -268,7 +268,7 @@ if __name__ == "__main__":
     ax.set_ylabel("#Stations added", labelpad=15)
     ax.legend(fontsize=16)
     fig.tight_layout()
-    fig.savefig("stationDevelopment.png", bbox_inches="tight")
+    fig.savefig("stationDevelopment.png", bbox_inches="tight", dpi=800)
     
     
     """
