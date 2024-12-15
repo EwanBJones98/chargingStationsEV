@@ -6,6 +6,8 @@ This program is the foundation of a basic framework to create plots and run simp
 demonstrations pertaining to electric vehicle charging in the UK. It is intended to collect,
 organise and processes data from the Open Charge Map for use in outreach and public engagement.
 
+City population data acquired from: https://www.macrotrends.net
+
 ** README **
 
     To fetch the required EV charging data you will need to set an envrionment variable named 'OPENCHARGEMAP_API_KEY' to an
@@ -24,7 +26,7 @@ import requests
 import os
 
 # Figure styling using seaborn
-sns.set_style("darkgrid")
+sns.set_style()
 sns.set_context("talk")
 
 # Get API keys from environment variables
@@ -57,14 +59,11 @@ class CityChargers:
     def add_chargers(self, charger_data):
         """
         INPUTS
-            charger_data (dict) -> dictionary containing lists of charger attributes,
-                                    invalid attributes will be ignored
-        """
-            
+            charger_data (dict) -> dictionary containing lists of charger attributes, invalid attributes will be ignored
+        """ 
         for attr in charger_data.keys():
             # Ignore invalid attributes
-            if attr not in CityChargers.valid_attributes:
-                continue
+            if attr not in CityChargers.valid_attributes: continue
             
             if getattr(self, attr) is None:
                 setattr(self, attr, np.array(charger_data[attr]))
@@ -152,12 +151,27 @@ def geocode_ukcities(city_names):
 # Haversine formula to find distance between two points on the Earth
 def haversine_earth(lat1, lon1, lat2, lon2):
     radius = 6378 #km
-
     delta_lat = (lat2 - lat1) * np.pi / 180
     delta_lon = (lon2 - lon1) * np.pi / 180
-    
     numerator = 1 - np.cos(delta_lat) + np.cos(lat1*np.pi/180) * np.cos(lat2*np.pi/180) * (1 - np.cos(delta_lon))
     return 2 * radius * np.arcsin(np.sqrt(numerator/2))
+
+# Function to read in population data files
+def read_popdata(city_name, dirpath=None):
+    """ Returns dictionary of population keyed by year """
+    # Use default data directory path if none supplied
+    if dirpath is None:
+        dirpath = os.path.join(os.path.dirname(__file__), "population_data")
+    filepath = os.path.join(dirpath, f"{city_name.lower()}.csv")
+    
+    data = {}
+    with open(filepath, "r") as fptr:
+        for line in fptr.readlines():
+            # Skip commented lines
+            if line.startswith("#"): continue
+            line_data = [int(i.strip()) for i in line.split(",")]
+            data[line_data[0]]  = line_data[1]
+    return data
 
 """ Function which creates and saves a static map of given region """
 def save_mapimage(savepath, center_coord, zoom_level, marker_coords=None, map_style="klokantech-basic"):
@@ -198,10 +212,10 @@ if __name__ == "__main__":
 
     """
     EXAMPLE 1
-        Compare the rate at which EV chargers are installed in various UK cities.
+        Compare how many EV chargers are installed per year in various UK cities from 2014-2024
     """
     # Get data for EV chargers in various cities
-    cities       = ["edinburgh", "glasgow", "london", "bristol", "birmingham"]
+    cities       = ["edinburgh", "glasgow", "london", "bristol", "manchester"]
     geocodes     = geocode_ukcities(cities)
     city_data = {}
     for city in cities:
@@ -214,54 +228,43 @@ if __name__ == "__main__":
         for date in city_data[city].date_added:
             tadded[city].append(datetime.timestamp(datetime.strptime(date.split("T")[0], "%Y-%m-%d")))
             
-    # Create bin edges for analysis
-    min_tstamp = np.min([np.min(tadded[city]) for city in cities])
-    max_tstamp = np.max([np.max(tadded[city]) for city in cities])
+    # Create time bins for analysis
+    start_year, end_year = 2014, 2024
+    bin_centers_tstamps = [datetime.timestamp(datetime(year, 1, 1)) for year in range(start_year, end_year+1)]
+    bin_width = timedelta(weeks=52).total_seconds() # I want bins one year wide
+    bin_edges = np.array([bin_centers_tstamps[0] + bin_width*(i - 1/2) for i in range(end_year-start_year+2)])
     
-    # Align the min and max timestamps with the new year
-    min_tstamp = datetime.timestamp(datetime(datetime.fromtimestamp(min_tstamp).year, 1, 1))
-    max_tstamp = datetime.timestamp(datetime(datetime.fromtimestamp(max_tstamp).year+1, 1, 1))
+    bin_centers = [datetime.fromtimestamp(i) for i in bin_centers_tstamps] # Get bin centers in standard date format
     
-    bin_width = timedelta(weeks=52).total_seconds() # I want bins that are 12 months wide
-    bin_edges = np.array([min_tstamp + i*bin_width for i in range(int((max_tstamp - min_tstamp)/bin_width))])
+    # Line colours for plots
+    colours = {"edinburgh":"red", "glasgow":"blue", "london":"black", "bristol":"green", "manchester":"orange"}
     
-    # Get bin centers in standard date format
-    bin_centers = bin_edges[1:] - bin_width/2
-    bin_centers = [datetime.fromtimestamp(i) for i in bin_centers]
+    # Let's also look at the number of EV stations added per capita for a fairer comparison
+    pop_data = {city: read_popdata(city) for city in cities} # Read in population data stored
     
-    # Create figure for plotting
-    fig, ax = plt.subplots(figsize=(8,6))
-    colours = {"edinburgh":"red", "glasgow":"blue", "london":"black", "bristol":"green", "birmingham":"orange"} # Line colours
-    
+    # Create figure
+    fig, axs = plt.subplots(nrows=2, sharex=True, figsize=(8,12))
     for city in cities:
-        # Let's skip london for now
-        if city.lower() == "london": continue
+        # Count number of chargers added in each time bin
+        count, _, _ = binned_statistic(tadded[city], tadded[city], statistic="count", bins=bin_edges)
+        # Divide chargers added by population for second axis
+        count_per_capita = np.array([count[i] / pop_data[city][x.year] for i, x in enumerate(bin_centers)])
         
-        # Count number of chargers added in each bin
-        count, _, _ = binned_statistic(tadded[city], tadded[city], statistic="count", bins=bin_edges)
-        ax.plot(bin_centers, count, color=colours[city], label=city.capitalize())
+        axs[1].plot(bin_centers, count, color=colours[city], label=city.capitalize())
+        axs[0].plot(bin_centers, 1000 * count_per_capita, color=colours[city])
     
-    ax.set_title("Number of EV charging stations added to the \nOpen Charge Map database in various UK cities \n(excluding London)", pad=20)
-    ax.set_xlabel("Year", labelpad=15)
-    ax.set_ylabel("#Stations added", labelpad=15)
-    ax.legend(fontsize=16)
+    axs[1].set_xlabel("Year", labelpad=15)
+    axs[1].set_ylabel("#Stations added", labelpad=15)
+    axs[1].legend(fontsize=16)
+    axs[0].set_title("Number of EV charging stations added to the \nOpen Charge Map database in various UK cities", pad=20)
+    axs[0].set_ylabel("#Stations added per 1,000 citizens", labelpad=15)
+    for ax in axs:
+        ax.set_yscale("log")
+        ax.grid(alpha=0.7)
+        ax.tick_params(which="both", direction="inout", zorder=100)
+        ax.set_xticks(bin_centers[::2], labels=[i.year for i in bin_centers[::2]])
     fig.tight_layout()
-    fig.savefig("stationDevelopment_exclLondon.png", bbox_inches="tight", dpi=800)
-    
-    # Now let's include London and see how it compares.
-    # I would write a function for this plotting to avoid duplication but I don't want to overcomplicate for this single demonstrative use.
-    fig, ax = plt.subplots(figsize=(8,6))
-    for city in cities:
-        # Count number of chargers added in each bin
-        count, _, _ = binned_statistic(tadded[city], tadded[city], statistic="count", bins=bin_edges)
-        ax.plot(bin_centers, count, color=colours[city], label=city.capitalize())
-    
-    ax.set_yscale("log")
-    ax.set_title("Number of EV charging stations added to the \nOpen Charge Map database in various UK cities", pad=20)
-    ax.set_xlabel("Year", labelpad=15)
-    ax.set_ylabel("#Stations added", labelpad=15)
-    ax.legend(fontsize=16)
-    fig.tight_layout()
+    fig.subplots_adjust(hspace=0.)
     fig.savefig("stationDevelopment.png", bbox_inches="tight", dpi=800)
     
     """
