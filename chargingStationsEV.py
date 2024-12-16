@@ -1,20 +1,7 @@
 """
 Author: Ewan Jones
-Date: 13/12/2024
-
-This program is the foundation of a basic framework to create plots and run simple interactive
-demonstrations pertaining to electric vehicle charging in the UK. It is intended to collect,
-organise and processes data from the Open Charge Map for use in outreach and public engagement.
-
-City population data acquired from: https://www.macrotrends.net
-
-** README **
-
-    To fetch the required EV charging data you will need to set an envrionment variable named 'OPENCHARGEMAP_API_KEY' to an
-    API key assigned to your account on https://openchargemap.org
-    
-    To fetch the required geolocation data you will need to set an environment variable named 'GEOAPIFY_API_KEY' to an
-    API key assigned to your account on https://www.geoapify.com
+Date Created: 13/12/2024
+Date Last Modified: 16/12/2024
 """
 from scipy.stats import binned_statistic
 from datetime import datetime, timedelta
@@ -39,19 +26,21 @@ class CityChargers:
     valid_attributes = {"UUID", "coordinates", "num_points", "date_added"}
     
     # Constructor
-    def __init__(self, name, bbox, coord):
+    def __init__(self, name, coord, bbox):
         """
         INPUTS
             name (string)         -> name of city
-            bbox (tuple(float))   -> bounding box (lat1, lon1, lat2, lon2) of city
             coord (tuple(float))  -> coordinate (lat, lon) of city center
+            bbox (tuple(float))   -> bounding box (lat1, lon1, lat2, lon2) of city
+            
         """
-        self.city_name   = name
-        self.city_bbox   = bbox
-        self.city_coord  = coord
         
-        # Data for chargers must be added through the add_chargers method, this 
-        #  initialises their storage
+        self.city_name   = name
+        self.city_coord  = coord
+        self.city_bbox   = bbox
+        
+        # Data for chargers must be added through the add_chargers method,
+        #   this initialises their storage
         for attr in CityChargers.valid_attributes:
             setattr(self, attr, None)
         
@@ -59,7 +48,8 @@ class CityChargers:
     def add_chargers(self, charger_data):
         """
         INPUTS
-            charger_data (dict) -> dictionary containing lists of charger attributes, invalid attributes will be ignored
+            charger_data (dict) -> dictionary containing lists of charger attributes,
+                                    invalid attributes will be ignored
         """ 
         for attr in charger_data.keys():
             # Ignore invalid attributes
@@ -72,7 +62,7 @@ class CityChargers:
             _data = np.concatenate(getattr(self, attr), np.array(charger_data[attr]))
             
             # Can assume that where data is missing corresponds to 1 charging point for minimum estimate
-            if attr is "num_points":
+            if attr == "num_points":
                 filt = _data is None
                 _data[filt] = 1
             
@@ -84,8 +74,8 @@ def check_api_response(response):
         print(f"Unsuccessful API call with status code {response.status_code}\nExiting...")
         exit(1)     
             
-""" Get EV charger (poi) data with certain conditions """
-def getdata_poi(conds={}):
+""" Get data for EV charging stations with certain conditions """
+def get_ev_station_data(conds={}):
     """
     INPUTS
         conds (dict) -> conditions a poi must meet.
@@ -119,7 +109,7 @@ def getdata_poi(conds={}):
     return data_allchargers
 
 """ Convert UK city names to latitude-longitude coordinates and get their bounding boxes """
-def geocode_ukcities(city_names):
+def get_coordinates_from_city_name(city_names):
     """
     INPUTS
         city_names (list(string)) -> names of cities within the UK
@@ -149,7 +139,7 @@ def geocode_ukcities(city_names):
     return geocodes
 
 # Haversine formula to find distance between two points on the Earth
-def haversine_earth(lat1, lon1, lat2, lon2):
+def haversine_distance_earth(lat1, lon1, lat2, lon2):
     radius = 6378 #km
     delta_lat = (lat2 - lat1) * np.pi / 180
     delta_lon = (lon2 - lon1) * np.pi / 180
@@ -157,7 +147,7 @@ def haversine_earth(lat1, lon1, lat2, lon2):
     return 2 * radius * np.arcsin(np.sqrt(numerator/2))
 
 # Function to read in population data files
-def read_popdata(city_name, dirpath=None):
+def read_population_data(city_name, dirpath=None):
     """ Returns dictionary of population keyed by year """
     # Use default data directory path if none supplied
     if dirpath is None:
@@ -174,7 +164,7 @@ def read_popdata(city_name, dirpath=None):
     return data
 
 """ Function which creates and saves a static map of given region """
-def save_mapimage(savepath, center_coord, zoom_level, marker_coords=None, map_style="klokantech-basic"):
+def save_static_map_image(savepath, center_coord, zoom_level, marker_coords=None, map_style="klokantech-basic"):
     """
     INPUTS
         savepath (string)    -> filepath to save the created map
@@ -183,7 +173,7 @@ def save_mapimage(savepath, center_coord, zoom_level, marker_coords=None, map_st
         marker_coords (list) -> list of (latitude, longitude) coordinates for placing markers on map
         map_style (string)   -> design styling of map
     OUTPUTS
-        png image of map as defined by input parameters
+        .png image of map as defined by input parameters
     """
     
     url = f"https://maps.geoapify.com/v1/staticmap?apiKey={API_KEY_GEO}"
@@ -207,20 +197,35 @@ def save_mapimage(savepath, center_coord, zoom_level, marker_coords=None, map_st
     # Save image to save path
     with open(savepath.split(".")[0] + ".png", "wb") as fptr:
         fptr.write(response.content)
+        
+""" Function which creates CityChargers objects from city names"""
+def get_city_chargers(city_names):
+    """
+    INPUTS
+        city_names (list(string)) -> names of cities
+    OUTPUTS
+        Dictionary keyed by city name, containing CityChargers objects
+    """
+    
+    geocodes = get_coordinates_from_city_name(cities)
+    
+    city_data = {}
+    for city in cities:
+        city_data[city] = CityChargers(city, *geocodes[city])
+        city_conds = {"boundingbox":city_data[city].city_bbox, "maxresults":100_000}
+        city_data[city].add_chargers(get_ev_station_data(conds=city_conds))
+        
+    return city_data
     
 if __name__ == "__main__":
-
+    
     """
     EXAMPLE 1
         Compare how many EV chargers are installed per year in various UK cities from 2014-2024
     """
     # Get data for EV chargers in various cities
     cities       = ["edinburgh", "glasgow", "london", "bristol", "manchester"]
-    geocodes     = geocode_ukcities(cities)
-    city_data = {}
-    for city in cities:
-        city_data[city] = CityChargers(city, geocodes[city][1], geocodes[city][0])
-        city_data[city].add_chargers(getdata_poi(conds={"boundingbox":city_data[city].city_bbox, "maxresults":100_000}))
+    city_data    = get_city_chargers(cities)
         
     # Convert dates added to POSIX timestamps which are easier to deal with for now
     tadded = defaultdict(lambda: [])
@@ -240,7 +245,7 @@ if __name__ == "__main__":
     colours = {"edinburgh":"red", "glasgow":"blue", "london":"black", "bristol":"green", "manchester":"orange"}
     
     # Let's also look at the number of EV stations added per capita for a fairer comparison
-    pop_data = {city: read_popdata(city) for city in cities} # Read in population data stored
+    pop_data = {city: read_population_data(city) for city in cities} # Read in population data stored
     
     # Create figure
     fig, axs = plt.subplots(nrows=2, sharex=True, figsize=(8,12))
@@ -285,9 +290,9 @@ if __name__ == "__main__":
         distance = []
         for coord in charger_coords:
             if None in coord: continue
-            distance.append(haversine_earth(*city_center, *coord))
+            distance.append(haversine_distance_earth(*city_center, *coord))
         distance = np.array(distance)
         sort_filt = np.argsort(distance)
         marker_coords = charger_coords[sort_filt]
         
-        save_mapimage(f"central_chargers_{city}", city_center, zoom_level, marker_coords=marker_coords[:num_markers])
+        save_static_map_image(f"central_chargers_{city}", city_center, zoom_level, marker_coords=marker_coords[:num_markers])
