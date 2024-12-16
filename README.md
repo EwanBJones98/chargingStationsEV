@@ -35,13 +35,13 @@ should be available through pip also.
 
 You will need to set two environment variables, each to a valid API key
 associated with the used service. Below is a list of the variables'
-names and the website where you can sign up for the API and receive
+name and the website where you can sign up for the API and receive
 your key.
 
 + OPENCHARGEMAP_API_KEY (https://openchargemap.org)
 + GEOAPIFY_API_KEY (https://www.geoapify.com)
 
-# Citations
+# Credits
 
 + Service used for EV charging API: https://openchargemap.org
 + Service used for geolocation API: https://www.geoapify.com
