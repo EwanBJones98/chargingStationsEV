@@ -24,8 +24,7 @@ generally robust and so any recent version is expected to work without issue.
 The recommended method of install for these is using conda, but all packages
 should be available through pip also.
 
-**The python version used was 3.7.16**
-
++ *python* (3.7.16)
 + numpy (1.21.0)
 + scipy (1.7.0)
 + matplotlib (3.4.1)
